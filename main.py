@@ -11,20 +11,13 @@ MINES = 10
 
 class Game:
     """Make a game"""
-
     active_game = None
     # Create main window
     root = Tk()
-    root.title("Minesweeper")
-
-    # Bind escape to exit
-    root.bind("<Escape>", lambda e: Game.root.destroy())
 
     # Create frames for scoreboard and game field
     top_bar = Frame(root, bd=6, relief="groove")
     minefield = Frame(root, bd=6, relief="groove")
-    top_bar.grid(column=0, row=0, sticky="EWNS")
-    minefield.grid(column=0, row=1, sticky="EWNS")
 
     def __init__(self):
         Game.active_game = self
@@ -33,28 +26,39 @@ class Game:
         self.cell_grid = []
         self.all_mines = []
         self.not_mines = []
-        self.graphics()
         self.scoreboard()
         self.generate_cells()
         self.generate_mines()
         self.root.mainloop()
 
     @classmethod
-    def graphics(cls):
-        """Configure graphics based on options"""
-        # Reset window size
-        cls.root.geometry(f"{CELL_SIZE * WIDTH}x{CELL_SIZE * (HEIGHT + 1)}")
+    def settings_static(cls):
+        """Configure graphics that don't change after game starts"""
+        cls.root.title("Minesweeper")
 
-        # Make frames resizeable depending on height
+        # Bind escape to exit
+        cls.root.bind("<Escape>", lambda e: cls.root.destroy())
+
+        # Make scoreboard frame resizable
         cls.root.grid_rowconfigure(0, weight=1)
-        cls.root.grid_rowconfigure(1, weight=HEIGHT)
         cls.root.grid_columnconfigure(0, weight=1)
 
         # Make scoreboard resizeable
+        cls.minefield.grid(column=0, row=1, sticky="EWNS")
+        cls.top_bar.grid(column=0, row=0, sticky="EWNS")
         cls.top_bar.grid_rowconfigure(0, weight=1)
         cls.top_bar.grid_columnconfigure(0, weight=1)
         cls.top_bar.grid_columnconfigure(1, weight=1)
         cls.top_bar.grid_columnconfigure(2, weight=1)
+
+    @classmethod
+    def settings_variable(cls):
+        """Configure graphics that change with difficulty, but not on reset"""
+        # Reset window size
+        cls.root.geometry(f"{CELL_SIZE * WIDTH}x{CELL_SIZE * (HEIGHT + 1)}")
+
+        # Make minefield frames resizeable depending on height
+        cls.root.grid_rowconfigure(1, weight=HEIGHT)
 
         # Make Buttons resizeable
         for i in range(HEIGHT):
@@ -70,7 +74,7 @@ class Game:
             font=("", 36),
             width=1,
             height=1,
-            command=self.__init__,
+            command=self.__init__
         )
         reset_button.grid(column=1, row=0, sticky="EWNS")
 
@@ -162,7 +166,7 @@ class Cell:
             bd=4,
             font=("Cooper Black", 36),
             width=1,
-            height=1,
+            height=1
         )
         self.button.bind("<Button-1>", lambda e: self.left_click())
         self.button.bind("<Button-3>", lambda e: self.right_click())
@@ -247,4 +251,6 @@ class Cell:
 
 
 if __name__ == "__main__":
+    Game.settings_static()
+    Game.settings_variable()
     Game()
