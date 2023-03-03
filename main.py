@@ -1,4 +1,9 @@
-"""Game of Minesweeper"""
+"""Game of Minesweeper
+
+Includes customizable difficulty, timer, 'mines left' counter.
+First move is always safe, the mine gets transported to a random cell.
+Settings are saved between games in a config.ini file,
+you can also customize said file to change fonts and difficulty"""
 import _tkinter
 import random
 import sys
@@ -8,11 +13,12 @@ from configparser import ConfigParser
 
 
 class Game:
-    """Make a game"""
+    """Holds the main game logic, and appearance. Brings everything else together"""
     # Main window lives in class and is not recreated to keep window size between resets
     root = Tk()
 
     def __init__(self):
+        # Everything below gets recreated during restart
         Cell.left_click = Cell.first_move
         Cell.right_click = Cell.flag
         self.cell_grid = []
@@ -29,9 +35,9 @@ class Game:
 
     @classmethod
     def root_settings_basic(cls):
-        """Basic settings for root window"""
+        """Basic settings for root window, only executed a launch"""
         # Increase recursion limit for those huge games with not that many mines
-        sys.setrecursionlimit(3000)
+        sys.setrecursionlimit(5000)
 
         cls.root.title("Minesweeper")
 
@@ -41,7 +47,7 @@ class Game:
 
         cls.root.iconbitmap('mine.ico')
 
-        # Bind escape to exit
+        # Bind escape and make game save settings on exit
         cls.root.bind("<Escape>", cls.save_and_exit)
         cls.root.protocol("WM_DELETE_WINDOW", cls.save_and_exit)
 
@@ -93,7 +99,7 @@ class Game:
         return top_bar
 
     def create_minefield(self):
-        """Minefield where main portion of the game takes place"""
+        """Field where the main portion of the game takes place"""
         minefield = Frame(self.root, bd=6, relief="groove")
         minefield.grid(column=0, row=1, sticky="EWNS")
 
@@ -105,7 +111,7 @@ class Game:
         return minefield
 
     def create_reset_button(self):
-        """Create, place, and return reset button"""
+        """Create button that resets the game without changing window size"""
         reset_button = Button(
             self.top_bar,
             text="RESET",
@@ -127,7 +133,9 @@ class Game:
         self.restart()
 
     def generate_cells(self):
-        """Generate the playing field"""
+        """Populates play field with Cells that contain buttons and attributes.
+        Store them all in a grid shape list to check neighboring mines later.
+        And in a basic list for mine generation"""
         for x in range(settings.cell_width):
             column = []
             for y in range(settings.cell_height):
@@ -138,7 +146,10 @@ class Game:
             self.cell_grid.append(column)
 
     def generate_mines(self):
-        """Make cells into mines and save them to lists"""
+        """Make cells into mines and save them to lists. Will be used during win/loss
+        to highlight unrevealed and unmarked mines.
+        Recreate list of not mines to calculate their values and move first mine later.
+        """
         self.all_mines = random.sample(self.not_mines, settings.mines)
         for mine in self.all_mines:
             mine.is_mine = True
@@ -166,7 +177,7 @@ class Game:
         ]
 
     def cell_value(self):
-        """Calculate how many mines are in surrounding cells"""
+        """Calculate how many mines are in surrounding cells, save it in an attribute"""
         for cell in self.not_mines:
             neighbors = self.find_neighbors(cell)
             value = 0
@@ -178,7 +189,7 @@ class Game:
     def victory(self):
         """You win the game"""
         for mine in self.all_mines:
-            # Flag all mines
+            # Flag all mines not flagged by the player
             if not mine.flagged:
                 mine.button.configure(
                     text="🏴", disabledforeground="#ab0000", state='disabled'
@@ -205,17 +216,18 @@ class Game:
         self.game_over()
 
     def game_over(self):
-        """Game over general tasks"""
+        """Game over general tasks. Stop the timer, disable controls"""
         self.timer.stop()
         Cell.left_click = Cell.disabled
         Cell.right_click = Cell.disabled
 
 
 class Cell:
-    """Make a cell"""
-
-    # Cell control variable. Go from 'first_move' > 'regular_move' > 'disabled'
+    """Make a cell that contains a button and some attributes"""
+    # Cell control. Change cell behavior without rebinding every individual cell.
+    # Left click goes from 'first_move' > 'regular_move' > 'disabled'
     left_click = None
+    # Right click is 'flag' or 'disabled'
     right_click = None
 
     def __init__(self, location, coordinates):
@@ -239,7 +251,10 @@ class Cell:
         self.button.bind("<Button-3>", lambda e: self.right_click())
 
     def first_move(self):
-        """Is executed once during the game and then replaced with 'regular_move'"""
+        """Executed once at the start of the game and replaced with 'regular_move'.
+        Makes first move safe, calculates values, starts timer, reveals cell.
+        """
+        # Check if the first cell opened is a mine and move it to different cell
         if self.is_mine:
             # Remove mine from first clicked cell
             self.is_mine = False
@@ -248,19 +263,28 @@ class Cell:
             replacement_mine = random.choice(active_game.not_mines)
             replacement_mine.is_mine = True
 
-            # Update lists
+            # Update corresponding lists
             active_game.all_mines.remove(self)
             active_game.not_mines.append(self)
             active_game.not_mines.remove(replacement_mine)
             active_game.all_mines.append(replacement_mine)
+
+        # Fill in cell value for all none mine cells
         active_game.cell_value()
+
         active_game.timer.start()
         self.reveal()
+
+        # Update counter for an edge case where player flagged some random squares
+        # at the start of the game and then hit a 0 to reveal some of those flagged cells
         active_game.flagged_counter.update()
+
         Cell.left_click = Cell.regular_move
 
     def regular_move(self):
-        """Left click action on an unrevealed cell"""
+        """Left click action on an unrevealed cell
+        Checks if you lost the game by hitting a mine, otherwise reveals cell
+        """
         if self.is_mine:
             self.button.configure(
                 bg="#f20000",
@@ -270,10 +294,13 @@ class Cell:
             active_game.loss()
         else:
             self.reveal()
+            # Update counter in case of hitting 0 to reveal some of falsely flagged cells
             active_game.flagged_counter.update()
 
     def reveal(self):
-        """Show cell that is not a mine"""
+        """Show value of a cell that is not a mine
+        Calls itself recursively if you hit a 0 (black space)
+        """
         # Check for falsely flagged mines, used during recursion call when you hit 0
         if self.flagged:
             self.button.configure(text="")
@@ -283,6 +310,7 @@ class Cell:
         # Change buttons to represent revealed cell
         self.button.configure(state="disabled", relief="sunken")
         self.revealed = True
+        # If you hit a 0 (black space), reveals cells next to self
         if self.value == 0:
             for neighbor in active_game.find_neighbors(self):
                 if not neighbor.revealed:
@@ -308,6 +336,7 @@ class Cell:
         self.left_click = self.disabled
         self.right_click = self.disabled
 
+        # Update the victory condition and check if it was met
         active_game.unrevealed_cell_count -= 1
         if active_game.unrevealed_cell_count == 0:
             active_game.victory()
@@ -319,7 +348,7 @@ class Cell:
                 text="", disabledforeground="black", state='normal'
             )
             self.flagged = False
-            # Delete instance variable disabling cell
+            # Delete instance attribute that is disabling cell, reactivating it.
             del self.left_click
             active_game.flagged_counter.counter += 1
         else:
@@ -327,19 +356,22 @@ class Cell:
                 text="🏴", disabledforeground="#ab0000", state="disabled"
             )
             self.flagged = True
-            # Disable control in instance variable
+            # Disable control in instance attribute. All other cells still use
+            # class attribute and thus remain active
             self.left_click = self.disabled
             active_game.flagged_counter.counter -= 1
         active_game.flagged_counter.update()
 
     @staticmethod
     def disabled(*args):
-        """Do nothing. Use this to disable controls on buttons as needed"""
+        """Do nothing. Used to disable controls on buttons as needed"""
         pass
 
 
 class Timer:
-    """Keeps track of time elapsed"""
+    """Keeps track of time elapsed.
+    Starts with first move and stops if you win/lose
+    """
     def __init__(self, location):
         self.counter = 0
         self.updating = None
@@ -357,7 +389,7 @@ class Timer:
         self.clock.grid(column=2, row=0)
 
     def update(self):
-        """Add a second to clock every second"""
+        """Add 1 to the clock every second"""
         self.clock.configure(text=f"⏱{self.counter:04d}")
         self.counter += 1
         self.updating = self.clock.after(1000, self.update)
@@ -389,19 +421,24 @@ class FlaggedCounter:
         self.unflagged_count.grid(column=0, row=0)
 
     def update(self):
-        """Update label with new count"""
+        """Update label with new count, counting itself is handled by cell controls"""
         self.unflagged_count.configure(text=f'{self.counter:02d}🕸')
 
 
 class Config:
     """Generates, stores and recalculates all of games settings"""
     def __init__(self):
+        # ConfingParser stores settings in between games and lets the player change them.
         self.config = ConfigParser()
+        # Check if confing file exist in the root directory of the game.
         if exists('config.ini'):
             self.config.read('config.ini')
+        # Otherwise, populate parser with defaults
         else:
             self.create_default_config()
 
+        # Read settings from parser. Fallback protects from deleted kay and values.
+        # Does not protect form maliciously changing to incorrect values
         self.cell_width = self.config.getint(
             'difficulty', 'cell_width', fallback=9)
         self.cell_height = self.config.getint(
@@ -420,7 +457,9 @@ class Config:
             'graphics', 'scoreboard_font', fallback="Fixedsys")
 
     def calculate_resolution(self):
-        """Resolution adjusts to game size"""
+        """Adjust resolution to cell number and cell size
+        :return str: resolution in a form of two numbers divided by an 'x'
+        """
         return f"{self.cell_size*self.cell_width}x{self.cell_size*(self.cell_height+1)+20}"
 
     def recalculate_font(self):
@@ -448,13 +487,19 @@ class Config:
         active_game.restart()
 
     def custom_settings_popup(self, location):
-        """Allows entry of custom game settings"""
+        """Allows entry of custom game settings.
+        Has restrictions on setting range and checks validity of user input.
+        :param location: Root window
+        """
         def submit_settings(event=None):
-            """Submit custom settings entered by user, or highlight errors"""
+            """Submit custom settings entered by user, or highlight errors
+            :param event: Takes in and ignores event if submitted by hitting Enter key
+            """
             # Check for validity of all entries
             valid_width = verify_entry(cell_width)
             valid_height = verify_entry(cell_height)
             valid_size = verify_entry(cell_size, 20, 200)
+            # Only check mine count if we know width and height, they are used in calculation
             valid_mines = True
             if valid_width and valid_height:
                 mine_max = cell_width.get() * cell_height.get() - 1
@@ -466,7 +511,7 @@ class Config:
                 self.cell_size = cell_size.get()
                 self.change_difficulty(cell_width.get(), cell_height.get(), mines.get())
 
-            # Highlight errors in entry. Mark valid options in white
+            # Highlight errors in entry to the user
             else:
                 highlight_input_error(valid_width, cell_width_entry)
                 highlight_input_error(valid_height, cell_height_entry)
@@ -475,23 +520,25 @@ class Config:
 
         def verify_entry(value, minimum=3, maximum=99):
             """Check int input validity
-            :return bool: True in value is valid int in range
+            :return bool: True if value is valid int in range
             :param tkinter.IntVar value: Entry value entered by user
             :param int minimum: Bottom of valid range
             :param int maximum: Top of valid range
             """
+            # Check if input is an int
             try:
                 x = value.get()
             except _tkinter.TclError:
                 return False
-
+            # Check if input is in range
             if minimum <= x <= maximum:
                 return True
             else:
                 return False
 
         def highlight_input_error(valid, entry):
-            """Change entry color based on entry validity
+            """Change entry background color based on entry validity.
+            Red for invalid, White for valid
             :param bool valid: User entry validity
             :param tkinter.Entry entry: Entry widget to change
             """
@@ -500,7 +547,7 @@ class Config:
             else:
                 entry.configure(bg='red')
 
-        # Create new window
+        # Create new window that pops up above main game
         top = Toplevel(location, takefocus=True, bd=15, relief="ridge")
         top.title("Custom")
         top.iconbitmap('mine.ico')
@@ -514,7 +561,7 @@ class Config:
         mines = IntVar(top, self.mines)
         cell_size = IntVar(top, self.cell_size)
 
-        # Create entries and labels
+        # Create entries and labels for user input
         Label(top, text="Cell width (3 to 99):").grid(column=0, row=0)
         cell_width_entry = Entry(top, width=5, justify='right', textvariable=cell_width)
         cell_width_entry.grid(column=1, row=0)
@@ -533,7 +580,7 @@ class Config:
 
         Button(top, text='Submit', command=submit_settings).grid(column=1, row=4)
 
-        # Prevent interaction with main window while popup is open
+        # Prevent interaction with main window while settings window is open
         top.focus_force()
         top.grab_set()
 
@@ -553,6 +600,7 @@ class Config:
 
     def save_config(self):
         """Save current changeable settings to file"""
+        # Update values in parser that could have changed with custom settings window
         self.config['difficulty'] = {
             'cell_width': self.cell_width,
             'cell_height': self.cell_height,
@@ -560,13 +608,19 @@ class Config:
         }
         self.config['graphics']['cell_size'] = str(self.cell_size)
 
+        # Save settings to external file in root directory
         with open('config.ini', 'w') as f:
             self.config.write(f)
 
 
 if __name__ == "__main__":
+    # First we prepare all the settings for the game
     settings = Config()
+    # Modify main game window with prepared settings
     Game.root_settings_varied()
     Game.root_settings_basic()
+    # Finally we start the game.
     active_game = Game()
+    # Mainloop must be outside active game, as otherwise it will be recreated during
+    # restart and leak memory.
     Game.root.mainloop()
