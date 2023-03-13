@@ -35,9 +35,9 @@ class Game:
 
     @classmethod
     def root_settings_basic(cls):
-        """Basic settings for root window, only executed a launch"""
+        """Basic settings for root window, only executed at launch"""
         # Increase recursion limit for those huge games with not that many mines
-        sys.setrecursionlimit(5000)
+        sys.setrecursionlimit(2000)
 
         cls.root.title("Minesweeper")
 
@@ -47,7 +47,7 @@ class Game:
 
         cls.root.iconbitmap('mine.ico')
 
-        # Bind escape and make game save settings on exit
+        # Bind escape and 'X' button to make game save settings on exit
         cls.root.bind("<Escape>", cls.save_and_exit)
         cls.root.protocol("WM_DELETE_WINDOW", cls.save_and_exit)
 
@@ -86,7 +86,7 @@ class Game:
         cls.root.destroy()
 
     def create_top_bar(self):
-        """Creates top bar"""
+        """Creates top bar that holds mines left counter, restart button and timer"""
         top_bar = Frame(self.root, bd=6, relief="groove")
 
         # Make top bar resizeable
@@ -146,9 +146,9 @@ class Game:
             self.cell_grid.append(column)
 
     def generate_mines(self):
-        """Make cells into mines and save them to lists. Will be used during win/loss
-        to highlight unrevealed and unmarked mines.
-        Recreate list of not mines to calculate their values and move first mine later.
+        """Make cells into mines and save them to a lists. Mine list will be used during
+        win/loss to highlight unrevealed and unmarked mines.
+        Recreate list of not mines to calculate their values and move a mine on first move.
         """
         self.all_mines = random.sample(self.not_mines, settings.mines)
         for mine in self.all_mines:
@@ -158,7 +158,7 @@ class Game:
         self.not_mines = [cell for cell in self.not_mines if not cell.is_mine]
 
     def find_neighbors(self, cell):
-        """Return list of cell's neighbors"""
+        """Return list of cell's neighbors while filtering out cells beyond the edge"""
         x, y = cell.coordinates
         neighbors = (
             (x - 1, y - 1),
@@ -177,7 +177,8 @@ class Game:
         ]
 
     def cell_value(self):
-        """Calculate how many mines are in surrounding cells, save it in an attribute"""
+        """For every cell that is not a mine, calculate how many mines are in
+        the surrounding cells. Save it in that cell's attribute"""
         for cell in self.not_mines:
             neighbors = self.find_neighbors(cell)
             value = 0
@@ -187,7 +188,7 @@ class Game:
                 cell.value = value
 
     def victory(self):
-        """You win the game"""
+        """You win the game when all non mine cells have been revealed"""
         for mine in self.all_mines:
             # Flag all mines not flagged by the player
             if not mine.flagged:
@@ -200,7 +201,7 @@ class Game:
         self.game_over()
 
     def loss(self):
-        """You lose the game"""
+        """You lose the game when you try to reveal a mine"""
         for mine in self.all_mines:
             # Reveal un-flagged mines
             if not mine.flagged:
@@ -231,6 +232,10 @@ class Cell:
     right_click = None
 
     def __init__(self, location, coordinates):
+        """
+        :param tkinter.Frame location: Minefield frame
+        :param (int, int) coordinates: x and y in the grid to look up neighbors
+        """
         self.is_mine = False
         self.flagged = False
         self.revealed = False
@@ -269,9 +274,10 @@ class Cell:
             active_game.not_mines.remove(replacement_mine)
             active_game.all_mines.append(replacement_mine)
 
-        # Fill in cell value for all none mine cells
+        # Fill in value for all none mine cells. Done after all mine placement is finalized
         active_game.cell_value()
 
+        Cell.left_click = Cell.regular_move
         active_game.timer.start()
         self.reveal()
 
@@ -279,12 +285,8 @@ class Cell:
         # at the start of the game and then hit a 0 to reveal some of those flagged cells
         active_game.flagged_counter.update()
 
-        Cell.left_click = Cell.regular_move
-
     def regular_move(self):
-        """Left click action on an unrevealed cell
-        Checks if you lost the game by hitting a mine, otherwise reveals cell
-        """
+        """Checks if you lost the game by hitting a mine. Otherwise, reveals cell"""
         if self.is_mine:
             self.button.configure(
                 bg="#f20000",
@@ -404,7 +406,7 @@ class Timer:
 
 
 class FlaggedCounter:
-    """Shows how many mines are still un-flagged"""
+    """Shows how many mines are still unflagged"""
     def __init__(self, location):
         self.counter = settings.mines
         self.unflagged_count = Label(
@@ -458,7 +460,7 @@ class Config:
 
     def calculate_resolution(self):
         """Adjust resolution to cell number and cell size
-        :return str: resolution in a form of two numbers divided by an 'x'
+        :return str: String of two ints divided by an 'x'
         """
         return f"{self.cell_size*self.cell_width}x{self.cell_size*(self.cell_height+1)+20}"
 
@@ -492,20 +494,22 @@ class Config:
         :param location: Root window
         """
         def submit_settings(event=None):
-            """Submit custom settings entered by user, or highlight errors
+            """Submit custom settings entered by user, or highlight errors.
             :param event: Takes in and ignores event if submitted by hitting Enter key
             """
             # Check for validity of all entries
             valid_width = verify_entry(cell_width)
             valid_height = verify_entry(cell_height)
             valid_size = verify_entry(cell_size, 20, 200)
-            # Only check mine count if we know width and height, they are used in calculation
+
+            # Only check mine count if we know width and height.
+            # They are used in the calculation
             valid_mines = True
             if valid_width and valid_height:
                 mine_max = cell_width.get() * cell_height.get() - 1
                 valid_mines = verify_entry(mines, 1, mine_max)
 
-            # Change settings and reset the game if valid
+            # Change settings and restart the game if valid
             if valid_width and valid_height and valid_size and valid_mines:
                 top.destroy()
                 self.cell_size = cell_size.get()
@@ -518,7 +522,7 @@ class Config:
                 highlight_input_error(valid_mines, mines_entry)
                 highlight_input_error(valid_size, cell_size_entry)
 
-        def verify_entry(value, minimum=3, maximum=99):
+        def verify_entry(value, minimum=3, maximum=40):
             """Check int input validity
             :return bool: True if value is valid int in range
             :param tkinter.IntVar value: Entry value entered by user
@@ -562,15 +566,15 @@ class Config:
         cell_size = IntVar(top, self.cell_size)
 
         # Create entries and labels for user input
-        Label(top, text="Cell width (3 to 99):").grid(column=0, row=0)
+        Label(top, text="Cell width (3 to 40):").grid(column=0, row=0)
         cell_width_entry = Entry(top, width=5, justify='right', textvariable=cell_width)
         cell_width_entry.grid(column=1, row=0)
 
-        Label(top, text="Cell height (3 to 99):").grid(column=0, row=1)
+        Label(top, text="Cell height (3 to 40):").grid(column=0, row=1)
         cell_height_entry = Entry(top, width=5, justify='right', textvariable=cell_height)
         cell_height_entry.grid(column=1, row=1)
 
-        Label(top, text="Mine count \n(1 to (Number of cells-1):").grid(column=0, row=2)
+        Label(top, text="Mine count \n(1 to (Number of cells-1)):").grid(column=0, row=2)
         mines_entry = Entry(top, width=5, justify='right', textvariable=mines)
         mines_entry.grid(column=1, row=2)
 
@@ -614,12 +618,12 @@ class Config:
 
 
 if __name__ == "__main__":
-    # First we prepare all the settings for the game
+    # Prepare all the settings for the game
     settings = Config()
     # Modify main game window with prepared settings
     Game.root_settings_varied()
     Game.root_settings_basic()
-    # Finally we start the game.
+    # Start the game.
     active_game = Game()
     # Mainloop must be outside active game, as otherwise it will be recreated during
     # restart and leak memory.
