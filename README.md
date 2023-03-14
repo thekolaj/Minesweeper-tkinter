@@ -1,5 +1,5 @@
 ![#Minesweeper game](banner.png)
-#### Video Demo:  <URL HERE>
+#### Video Demo: https://youtu.be/FmcvxSywN1o
 
 ## Introduction
 My second project. A classic Minesweeper game.
@@ -22,7 +22,7 @@ It will continue doing so for every cell with zero mines nearby, recursively.
 
 #### Features:
 - **Resizable interface**: Game adapts to you changing the window size and the number of cells
-- **Game settings**: Change the settings in-game with a menu bar or out-of-game in an 
+- **Game settings**: Change the settings in-game with a menu bar or out-of-game in a 
 `config.ini` file
 - **Mines left counter**: Accurately tracks how many mines are left unflagged
 - **Game Timer**: Tracks how much time it took to beat the game

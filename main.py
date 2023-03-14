@@ -3,7 +3,8 @@
 Includes customizable difficulty, timer, 'mines left' counter.
 First move is always safe, the mine gets transported to a random cell.
 Settings are saved between games in a config.ini file,
-you can also customize said file to change fonts and difficulty"""
+you can also customize said file to change fonts and difficulty
+"""
 import _tkinter
 import random
 import sys
