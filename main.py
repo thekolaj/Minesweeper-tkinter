@@ -5,86 +5,94 @@ First move is always safe, the mine gets transported to a random cell.
 Settings are saved between games in a config.ini file,
 you can also customize said file to change fonts and difficulty
 """
-import _tkinter
+
 import random
 import sys
-from os.path import exists
 from tkinter import *
-from configparser import ConfigParser
+from timer_ import Timer
+from config import Config
+from flagged_counter import FlaggedCounter
 
 
 class Game:
     """Holds the main game logic, and appearance. Brings everything else together"""
-    # Main window lives in class and is not recreated to keep window size between resets
-    root = Tk()
-
     def __init__(self):
+        # Main window is not recreated to keep window size between resets
+        self.root = Tk()
+        self.settings = Config(self)
+
+        # Modify main game window with prepared settings
+        self.root_settings_varied()
+        self.root_settings_basic()
+        
+
+    def start(self):
         # Everything below gets recreated during restart
         Cell.left_click = Cell.first_move
         Cell.right_click = Cell.flag
         self.cell_grid = []
         self.all_mines = []
         self.not_mines = []
-        self.unrevealed_cell_count = settings.unrevealed_cell_count()
+        self.unrevealed_cell_count = self.settings.unrevealed_cell_count()
         self.top_bar = self.create_top_bar()
-        self.flagged_counter = FlaggedCounter(self.top_bar)
-        self.timer = Timer(self.top_bar)
+        self.flagged_counter = FlaggedCounter(
+            self.top_bar,
+            self.settings.mines,
+            (self.settings.scoreboard_font, self.settings.font_size)
+            )
+        self.timer = Timer(self.top_bar, (self.settings.scoreboard_font, self.settings.font_size))
         self.reset_button = self.create_reset_button()
         self.minefield = self.create_minefield()
         self.generate_cells()
         self.generate_mines()
 
-    @classmethod
-    def root_settings_basic(cls):
+    def root_settings_basic(self):
         """Basic settings for root window, only executed at launch"""
         # Increase recursion limit for those huge games with not that many mines
         sys.setrecursionlimit(2000)
 
-        cls.root.title("Minesweeper")
+        self.root.title("Minesweeper")
 
         # Creating menu bar after icon for some reason reduces initial resolution by 20px
         # Be wary of moving it anywhere later in code
-        cls.create_difficulty_menubar()
+        self.create_difficulty_menubar()
 
-        cls.root.iconbitmap('mine.ico')
+        self.root.iconbitmap('mine.ico')
 
         # Bind escape and 'X' button to make game save settings on exit
-        cls.root.bind("<Escape>", cls.save_and_exit)
-        cls.root.protocol("WM_DELETE_WINDOW", cls.save_and_exit)
+        self.root.bind("<Escape>", self.save_and_exit)
+        self.root.protocol("WM_DELETE_WINDOW", self.save_and_exit)
 
         # Make scoreboard frame resizable
-        cls.root.grid_rowconfigure(0, weight=1)
-        cls.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
 
 
-    @classmethod
-    def root_settings_varied(cls):
+    def root_settings_varied(self):
         """Settings that change with game difficulty"""
         # Reset window size
-        cls.root.geometry(settings.resolution)
+        self.root.geometry(self.settings.resolution)
 
         # Make minefield frames resizable depending on height
-        cls.root.grid_rowconfigure(1, weight=settings.cell_height)
+        self.root.grid_rowconfigure(1, weight=self.settings.cell_height)
 
-    @classmethod
-    def create_difficulty_menubar(cls):
+    def create_difficulty_menubar(self):
         """Create menubar that lets you select difficulty"""
-        menubar = Menu(cls.root)
+        menubar = Menu(self.root)
         menubar.add_command(label='Beginner 9x9',
-                            command=lambda: settings.change_difficulty(9, 9, 10))
+                            command=lambda: self.settings.change_difficulty(9, 9, 10))
         menubar.add_command(label='Intermediate 16x16',
-                            command=lambda: settings.change_difficulty(16, 16, 40))
+                            command=lambda: self.settings.change_difficulty(16, 16, 40))
         menubar.add_command(label='Expert 30x16',
-                            command=lambda: settings.change_difficulty(30, 16, 99))
+                            command=lambda: self.settings.change_difficulty(30, 16, 99))
         menubar.add_command(label='Custom',
-                            command=lambda: settings.custom_settings_popup(cls.root))
-        cls.root['menu'] = menubar
+                            command=lambda: self.settings.custom_settings_popup(self.root))
+        self.root['menu'] = menubar
 
-    @classmethod
-    def save_and_exit(cls, event=None):
+    def save_and_exit(self, event=None):
         """Save settings before exiting game"""
-        settings.save_config()
-        cls.root.destroy()
+        self.settings.save_config()
+        self.root.destroy()
 
     def create_top_bar(self):
         """Creates top bar that holds mines left counter, restart button and timer"""
@@ -104,10 +112,10 @@ class Game:
         minefield = Frame(self.root, bd=6, relief="groove")
         minefield.grid(column=0, row=1, sticky="EWNS")
 
-        # Make Buttons resizeable
-        for i in range(settings.cell_height):
+        # Make Buttons resizable
+        for i in range(self.settings.cell_height):
             minefield.grid_rowconfigure(i, weight=1)
-        for j in range(settings.cell_width):
+        for j in range(self.settings.cell_width):
             minefield.grid_columnconfigure(j, weight=1)
         return minefield
 
@@ -116,7 +124,7 @@ class Game:
         reset_button = Button(
             self.top_bar,
             text="RESET",
-            font=(settings.scoreboard_font, settings.font_size),
+            font=(self.settings.scoreboard_font, self.settings.font_size),
             command=self.reset
         )
         reset_button.grid(column=1, row=0, sticky="EWNS")
@@ -126,20 +134,20 @@ class Game:
         """Restarts the game without changing settings"""
         self.top_bar.destroy()
         self.minefield.destroy()
-        self.__init__()
+        self.start()
 
     def reset(self):
         """Reset button restarts while adjusting font to new resolution"""
-        settings.recalculate_font()
+        self.settings.recalculate_font()
         self.restart()
 
     def generate_cells(self):
         """Populates play field with Cells that contain buttons and attributes.
         Store them all in a grid shape list to check neighboring mines later.
         And in a basic list for mine generation"""
-        for x in range(settings.cell_width):
+        for x in range(self.settings.cell_width):
             column = []
-            for y in range(settings.cell_height):
+            for y in range(self.settings.cell_height):
                 new_cell = Cell(self.minefield, (x, y))
                 new_cell.button.grid(column=x, row=y, sticky="EWNS")
                 column.append(new_cell)
@@ -151,7 +159,7 @@ class Game:
         win/loss to highlight unrevealed and unmarked mines.
         Recreate list of not mines to calculate their values and move a mine on first move.
         """
-        self.all_mines = random.sample(self.not_mines, settings.mines)
+        self.all_mines = random.sample(self.not_mines, self.settings.mines)
         for mine in self.all_mines:
             mine.is_mine = True
 
@@ -174,7 +182,7 @@ class Game:
         return [
             self.cell_grid[i][j]
             for i, j in neighbors
-            if 0 <= i < settings.cell_width and 0 <= j < settings.cell_height
+            if 0 <= i < self.settings.cell_width and 0 <= j < self.settings.cell_height
         ]
 
     def cell_value(self):
@@ -228,9 +236,9 @@ class Cell:
     """Make a cell that contains a button and some attributes"""
     # Cell control. Change cell behavior without rebinding every individual cell.
     # Left click goes from 'first_move' > 'regular_move' > 'disabled'
-    left_click = None
+    left_click: callable = None
     # Right click is 'flag' or 'disabled'
-    right_click = None
+    right_click: callable = None
 
     def __init__(self, location, coordinates):
         """
@@ -249,7 +257,7 @@ class Cell:
             text="",
             disabledforeground="black",
             bd=4,
-            font=(settings.cell_font, settings.font_size),
+            font=(active_game.settings.cell_font, active_game.settings.font_size),
             width=1,
             height=1
         )
@@ -370,262 +378,13 @@ class Cell:
         """Do nothing. Used to disable controls on buttons as needed"""
         pass
 
-
-class Timer:
-    """Keeps track of time elapsed.
-    Starts with first move and stops if you win/lose
-    """
-    def __init__(self, location):
-        self.counter = 0
-        self.updating = None
-        self.clock = Label(
-            location,
-            text='⏱0000',
-            font=(settings.scoreboard_font, settings.font_size),
-            bd=6,
-            padx=20,
-            pady=10,
-            relief='ridge',
-            fg='green',
-            bg='black'
-        )
-        self.clock.grid(column=2, row=0)
-
-    def update(self):
-        """Add 1 to the clock every second"""
-        self.clock.configure(text=f"⏱{self.counter:04d}")
-        self.counter += 1
-        self.updating = self.clock.after(1000, self.update)
-
-    def start(self):
-        """Start the timer"""
-        self.update()
-
-    def stop(self):
-        """Stop the timer"""
-        self.clock.after_cancel(self.updating)
-
-
-class FlaggedCounter:
-    """Shows how many mines are still unflagged"""
-    def __init__(self, location):
-        self.counter = settings.mines
-        self.unflagged_count = Label(
-            location,
-            text=f'{self.counter:02d}🕸',
-            font=(settings.scoreboard_font, settings.font_size),
-            bd=6,
-            padx=20,
-            pady=10,
-            relief='ridge',
-            fg='green',
-            bg='black'
-        )
-        self.unflagged_count.grid(column=0, row=0)
-
-    def update(self):
-        """Update label with new count, counting itself is handled by cell controls"""
-        self.unflagged_count.configure(text=f'{self.counter:02d}🕸')
-
-
-class Config:
-    """Generates, stores and recalculates all of games settings"""
-    def __init__(self):
-        # ConfingParser stores settings in between games and lets the player change them.
-        self.config = ConfigParser()
-        # Check if confing file exist in the root directory of the game.
-        if exists('config.ini'):
-            self.config.read('config.ini')
-        # Otherwise, populate parser with defaults
-        else:
-            self.create_default_config()
-
-        # Read settings from parser. Fallback protects from deleted kay and values.
-        # Does not protect form maliciously changing to incorrect values
-        self.cell_width = self.config.getint(
-            'difficulty', 'cell_width', fallback=9)
-        self.cell_height = self.config.getint(
-            'difficulty', 'cell_height', fallback=9)
-        self.mines = self.config.getint(
-            'difficulty', 'mines', fallback=10)
-        self.cell_size = self.config.getint(
-            'graphics', 'cell_size', fallback=50)
-        self.font_modifier = self.config.getfloat(
-            'graphics', 'font_modifier', fallback=0.5)
-        self.resolution = self.calculate_resolution()
-        self.font_size = int(self.cell_size * self.font_modifier)
-        self.cell_font = self.config.get(
-            'graphics', 'cell_font', fallback="Cooper Black")
-        self.scoreboard_font = self.config.get(
-            'graphics', 'scoreboard_font', fallback="Fixedsys")
-
-    def calculate_resolution(self):
-        """Adjust resolution to cell number and cell size
-        :return str: String of two ints divided by an 'x'
-        """
-        return f"{self.cell_size*self.cell_width}x{self.cell_size*(self.cell_height+1)+20}"
-
-    def recalculate_font(self):
-        """Adjust font to better suit potentially resized window"""
-        self.font_size = int(
-            (Game.root.winfo_height()-20) / (self.cell_height+1) * self.font_modifier)
-
-    def unrevealed_cell_count(self):
-        """How many cells need to be revealed to win the game"""
-        return self.cell_width * self.cell_height - self.mines
-
-    def change_difficulty(self, x, y, m):
-        """Sets new difficulty settings and resets the game
-
-        :param int x: new cell width
-        :param int y: new cell height
-        :param int m: new number of mines
-        """
-        self.cell_width = x
-        self.cell_height = y
-        self.mines = m
-        self.resolution = self.calculate_resolution()
-        self.font_size = int(self.cell_size * self.font_modifier)
-        Game.root_settings_varied()
-        active_game.restart()
-
-    def custom_settings_popup(self, location):
-        """Allows entry of custom game settings.
-        Has restrictions on setting range and checks validity of user input.
-        :param location: Root window
-        """
-        def submit_settings(event=None):
-            """Submit custom settings entered by user, or highlight errors.
-            :param event: Takes in and ignores event if submitted by hitting Enter key
-            """
-            # Check for validity of all entries
-            valid_width = verify_entry(cell_width)
-            valid_height = verify_entry(cell_height)
-            valid_size = verify_entry(cell_size, 20, 200)
-
-            # Only check mine count if we know width and height.
-            # They are used in the calculation
-            valid_mines = True
-            if valid_width and valid_height:
-                mine_max = cell_width.get() * cell_height.get() - 1
-                valid_mines = verify_entry(mines, 1, mine_max)
-
-            # Change settings and restart the game if valid
-            if valid_width and valid_height and valid_size and valid_mines:
-                top.destroy()
-                self.cell_size = cell_size.get()
-                self.change_difficulty(cell_width.get(), cell_height.get(), mines.get())
-
-            # Highlight errors in entry to the user
-            else:
-                highlight_input_error(valid_width, cell_width_entry)
-                highlight_input_error(valid_height, cell_height_entry)
-                highlight_input_error(valid_mines, mines_entry)
-                highlight_input_error(valid_size, cell_size_entry)
-
-        def verify_entry(value, minimum=3, maximum=40):
-            """Check int input validity
-            :return bool: True if value is valid int in range
-            :param tkinter.IntVar value: Entry value entered by user
-            :param int minimum: Bottom of valid range
-            :param int maximum: Top of valid range
-            """
-            # Check if input is an int
-            try:
-                x = value.get()
-            except _tkinter.TclError:
-                return False
-            # Check if input is in range
-            if minimum <= x <= maximum:
-                return True
-            else:
-                return False
-
-        def highlight_input_error(valid, entry):
-            """Change entry background color based on entry validity.
-            Red for invalid, White for valid
-            :param bool valid: User entry validity
-            :param tkinter.Entry entry: Entry widget to change
-            """
-            if valid:
-                entry.configure(bg='white')
-            else:
-                entry.configure(bg='red')
-
-        # Create new window that pops up above main game
-        top = Toplevel(location, takefocus=True, bd=15, relief="ridge")
-        top.title("Custom")
-        top.iconbitmap('mine.ico')
-        top.resizable(False, False)
-        top.bind("<Escape>", lambda e: top.destroy())
-        top.bind("<Return>", submit_settings)
-
-        # Create variable to store settings
-        cell_width = IntVar(top, self.cell_width)
-        cell_height = IntVar(top, self.cell_height)
-        mines = IntVar(top, self.mines)
-        cell_size = IntVar(top, self.cell_size)
-
-        # Create entries and labels for user input
-        Label(top, text="Cell width (3 to 40):").grid(column=0, row=0)
-        cell_width_entry = Entry(top, width=5, justify='right', textvariable=cell_width)
-        cell_width_entry.grid(column=1, row=0)
-
-        Label(top, text="Cell height (3 to 40):").grid(column=0, row=1)
-        cell_height_entry = Entry(top, width=5, justify='right', textvariable=cell_height)
-        cell_height_entry.grid(column=1, row=1)
-
-        Label(top, text="Mine count \n(1 to (Number of cells-1)):").grid(column=0, row=2)
-        mines_entry = Entry(top, width=5, justify='right', textvariable=mines)
-        mines_entry.grid(column=1, row=2)
-
-        Label(top, text="Cell size in px.:\n(Default=50) (20 to 200)").grid(column=0, row=3)
-        cell_size_entry = Entry(top, width=5, justify='right', textvariable=cell_size)
-        cell_size_entry.grid(column=1, row=3)
-
-        Button(top, text='Submit', command=submit_settings).grid(column=1, row=4)
-
-        # Prevent interaction with main window while settings window is open
-        top.focus_force()
-        top.grab_set()
-
-    def create_default_config(self):
-        """Fill in default values into ConfigParser"""
-        self.config['difficulty'] = {
-            'cell_width': 9,
-            'cell_height': 9,
-            'mines': 10,
-        }
-        self.config['graphics'] = {
-            'cell_size': 50,
-            'font_modifier': 0.5,
-            'cell_font': "Cooper Black",
-            'scoreboard_font': "Fixedsys",
-        }
-
-    def save_config(self):
-        """Save current changeable settings to file"""
-        # Update values in parser that could have changed with custom settings window
-        self.config['difficulty'] = {
-            'cell_width': self.cell_width,
-            'cell_height': self.cell_height,
-            'mines': self.mines,
-        }
-        self.config['graphics']['cell_size'] = str(self.cell_size)
-
-        # Save settings to external file in root directory
-        with open('config.ini', 'w') as f:
-            self.config.write(f)
-
-
 if __name__ == "__main__":
     # Prepare all the settings for the game
-    settings = Config()
-    # Modify main game window with prepared settings
-    Game.root_settings_varied()
-    Game.root_settings_basic()
+    
     # Start the game.
     active_game = Game()
+
+    active_game.start()
     # Mainloop must be outside active game, as otherwise it will be recreated during
     # restart and leak memory.
-    Game.root.mainloop()
+    active_game.root.mainloop()
