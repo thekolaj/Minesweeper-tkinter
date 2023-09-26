@@ -140,7 +140,7 @@ class Config:
         # Create new window that pops up above main game
         top = Toplevel(location, takefocus=True, bd=15, relief="ridge")
         top.title("Custom")
-        top.iconbitmap('mine.ico')
+        top.iconbitmap('img/mine.ico')
         top.resizable(False, False)
         top.bind("<Escape>", lambda e: top.destroy())
         top.bind("<Return>", submit_settings)
