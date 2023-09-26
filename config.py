@@ -14,8 +14,6 @@ class Config:
     min_cell_size = 20
     max_cell_size = 200
 
-
-
     def __init__(self, game: "Game"):
         self.active_game = game
         # ConfigParser stores settings in between games and lets the player change them.
