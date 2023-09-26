@@ -1,14 +1,21 @@
-import _tkinter
-from tkinter import Toplevel, IntVar, Label, Entry, Button
+from tkinter import Toplevel, IntVar, Label, Entry, Button, Tk
 from configparser import ConfigParser
 from os.path import exists
 from typing import TYPE_CHECKING
+import _tkinter
 if TYPE_CHECKING:
     from main import Game
 
 
 class Config:
     """Generates, stores and recalculates all of games settings"""
+    min_cell_count = 3
+    max_cell_count = 40
+    min_cell_size = 20
+    max_cell_size = 200
+
+
+
     def __init__(self, game: "Game"):
         self.active_game = game
         # ConfigParser stores settings in between games and lets the player change them.
@@ -39,7 +46,7 @@ class Config:
         self.scoreboard_font = self.config.get(
             'graphics', 'scoreboard_font', fallback="Fixedsys")
 
-    def calculate_resolution(self):
+    def calculate_resolution(self) -> str:
         """Adjust resolution to cell number and cell size
         :return str: String of two ints divided by an 'x'
         """
@@ -50,7 +57,7 @@ class Config:
         self.font_size = int(
             (self.active_game.root.winfo_height()-20) / (self.cell_height+1) * self.font_modifier)
 
-    def unrevealed_cell_count(self):
+    def unrevealed_cell_count(self) -> int:
         """How many cells need to be revealed to win the game"""
         return self.cell_width * self.cell_height - self.mines
 
@@ -69,7 +76,7 @@ class Config:
         self.active_game.root_settings_varied()
         self.active_game.restart()
 
-    def custom_settings_popup(self, location):
+    def custom_settings_popup(self, location: Tk):
         """Allows entry of custom game settings.
         Has restrictions on setting range and checks validity of user input.
         :param location: Root window
@@ -81,7 +88,7 @@ class Config:
             # Check for validity of all entries
             valid_width = verify_entry(cell_width)
             valid_height = verify_entry(cell_height)
-            valid_size = verify_entry(cell_size, 20, 200)
+            valid_size = verify_entry(cell_size, self.min_cell_size, self.max_cell_size)
 
             # Only check mine count if we know width and height.
             # They are used in the calculation
@@ -103,7 +110,10 @@ class Config:
                 highlight_input_error(valid_mines, mines_entry)
                 highlight_input_error(valid_size, cell_size_entry)
 
-        def verify_entry(value: IntVar, minimum=3, maximum=40):
+        def verify_entry(value: IntVar,
+                         minimum: int = self.min_cell_count,
+                         maximum: int = self.max_cell_count
+                         ) -> bool:
             """Check int input validity
             :return bool: True if value is valid int in range
             :param tkinter.IntVar value: Entry value entered by user
@@ -116,10 +126,7 @@ class Config:
             except _tkinter.TclError:
                 return False
             # Check if input is in range
-            if minimum <= x <= maximum:
-                return True
-            else:
-                return False
+            return minimum <= x <= maximum
 
         def highlight_input_error(valid: bool, entry: Entry):
             """Change entry background color based on entry validity.
@@ -147,11 +154,15 @@ class Config:
         cell_size = IntVar(top, self.cell_size)
 
         # Create entries and labels for user input
-        Label(top, text="Cell width (3 to 40):").grid(column=0, row=0)
+        Label(top, 
+              text=f"Cell width ({self.min_cell_count} to {self.max_cell_count}):"
+              ).grid(column=0, row=0)
         cell_width_entry = Entry(top, width=5, justify='right', textvariable=cell_width)
         cell_width_entry.grid(column=1, row=0)
 
-        Label(top, text="Cell height (3 to 40):").grid(column=0, row=1)
+        Label(top, 
+              text=f"Cell height ({self.min_cell_count} to {self.max_cell_count}):"
+              ).grid(column=0, row=1)
         cell_height_entry = Entry(top, width=5, justify='right', textvariable=cell_height)
         cell_height_entry.grid(column=1, row=1)
 
@@ -159,7 +170,9 @@ class Config:
         mines_entry = Entry(top, width=5, justify='right', textvariable=mines)
         mines_entry.grid(column=1, row=2)
 
-        Label(top, text="Cell size in px.:\n(Default=50) (20 to 200)").grid(column=0, row=3)
+        Label(top,
+              text=f"Cell size in px.:\n(Default=50) ({self.min_cell_size} to {self.max_cell_size})"
+              ).grid(column=0, row=3)
         cell_size_entry = Entry(top, width=5, justify='right', textvariable=cell_size)
         cell_size_entry.grid(column=1, row=3)
 
