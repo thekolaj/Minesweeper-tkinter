@@ -8,41 +8,78 @@ you can also customize said file to change fonts and difficulty
 
 import random
 import sys
-from tkinter import *
+from tkinter import Tk, Frame, Button, Menu
+from cell import Cell
 from timer_ import Timer
 from config import Config
 from flagged_counter import FlaggedCounter
 
 
+def main():
+    """Simple steps to run the game"""
+    # Create main game window with settings.
+    active_game = Game()
+
+    # Initialise the game.
+    active_game.start()
+
+    # Mainloop must be outside of .start(), as otherwise it will be recreated during
+    # restart and leak memory.
+    active_game.root.mainloop()
+
+
 class Game:
-    """Holds the main game logic, and appearance. Brings everything else together"""
+    """Holds the main game logic"""
+
     def __init__(self):
         # Main window is not recreated to keep window size between resets
         self.root = Tk()
+
+        # Allows other classes to interact with main game.
         self.settings = Config(self)
+        Cell.active_game = self
 
         # Modify main game window with prepared settings
         self.root_settings_varied()
         self.root_settings_basic()
-        
+
+        # Declare future variables
+        self.cell_grid: list[list[Cell]]
+        self.all_mines: list[Cell]
+        self.not_mines: list[Cell]
+
+        self.top_bar: Frame
+        self.minefield: Frame
+
+        self.reset_button: Button
+        self.flagged_counter: FlaggedCounter
+        self.timer: Timer
+
+        # End game condition. Hitting 0 ends the game.
+        self.unrevealed_cell_count: int
 
     def start(self):
-        # Everything below gets recreated during restart
+        """ Start or restart the game.
+        Creates everything unique per game.
+        Sets Cell behavior to starting value. 
+        """
         Cell.left_click = Cell.first_move
         Cell.right_click = Cell.flag
-        self.cell_grid = []
-        self.all_mines = []
-        self.not_mines = []
+
+        # Top Bar Creation and population
         self.unrevealed_cell_count = self.settings.unrevealed_cell_count()
-        self.top_bar = self.create_top_bar()
+        self.create_top_bar()
         self.flagged_counter = FlaggedCounter(
             self.top_bar,
             self.settings.mines,
             (self.settings.scoreboard_font, self.settings.font_size)
-            )
-        self.timer = Timer(self.top_bar, (self.settings.scoreboard_font, self.settings.font_size))
-        self.reset_button = self.create_reset_button()
-        self.minefield = self.create_minefield()
+        )
+        self.timer = Timer(
+            self.top_bar, (self.settings.scoreboard_font, self.settings.font_size))
+        self.create_reset_button()
+
+        # Minefield creation and population
+        self.create_minefield()
         self.generate_cells()
         self.generate_mines()
 
@@ -53,7 +90,8 @@ class Game:
 
         self.root.title("Minesweeper")
 
-        # Creating menu bar after icon for some reason reduces initial resolution by 20px
+        # Creating menu bar before icon. 
+        # For some reason reduces initial resolution by 20px if placed incorrectly.
         # Be wary of moving it anywhere later in code
         self.create_difficulty_menubar()
 
@@ -67,9 +105,8 @@ class Game:
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
 
-
     def root_settings_varied(self):
-        """Settings that change with game difficulty"""
+        """Settings that change with game size"""
         # Reset window size
         self.root.geometry(self.settings.resolution)
 
@@ -96,39 +133,35 @@ class Game:
 
     def create_top_bar(self):
         """Creates top bar that holds mines left counter, restart button and timer"""
-        top_bar = Frame(self.root, bd=6, relief="groove")
+        self.top_bar = Frame(self.root, bd=6, relief="groove")
 
         # Make top bar resizable
-        top_bar.grid(column=0, row=0, sticky="EWNS")
-        top_bar.grid_rowconfigure(0, weight=1)
-        top_bar.grid_columnconfigure(0, weight=1)
-        top_bar.grid_columnconfigure(1, weight=1)
-        top_bar.grid_columnconfigure(2, weight=1)
-
-        return top_bar
+        self.top_bar.grid(column=0, row=0, sticky="EWNS")
+        self.top_bar.grid_rowconfigure(0, weight=1)
+        self.top_bar.grid_columnconfigure(0, weight=1)
+        self.top_bar.grid_columnconfigure(1, weight=1)
+        self.top_bar.grid_columnconfigure(2, weight=1)
 
     def create_minefield(self):
         """Field where the main portion of the game takes place"""
-        minefield = Frame(self.root, bd=6, relief="groove")
-        minefield.grid(column=0, row=1, sticky="EWNS")
+        self.minefield = Frame(self.root, bd=6, relief="groove")
+        self.minefield.grid(column=0, row=1, sticky="EWNS")
 
         # Make Buttons resizable
         for i in range(self.settings.cell_height):
-            minefield.grid_rowconfigure(i, weight=1)
+            self.minefield.grid_rowconfigure(i, weight=1)
         for j in range(self.settings.cell_width):
-            minefield.grid_columnconfigure(j, weight=1)
-        return minefield
+            self.minefield.grid_columnconfigure(j, weight=1)
 
     def create_reset_button(self):
         """Create button that resets the game without changing window size"""
-        reset_button = Button(
+        self.reset_button = Button(
             self.top_bar,
             text="RESET",
             font=(self.settings.scoreboard_font, self.settings.font_size),
             command=self.reset
         )
-        reset_button.grid(column=1, row=0, sticky="EWNS")
-        return reset_button
+        self.reset_button.grid(column=1, row=0, sticky="EWNS")
 
     def restart(self):
         """Restarts the game without changing settings"""
@@ -145,6 +178,9 @@ class Game:
         """Populates play field with Cells that contain buttons and attributes.
         Store them all in a grid shape list to check neighboring mines later.
         And in a basic list for mine generation"""
+        self.cell_grid = []
+        self.not_mines = []
+
         for x in range(self.settings.cell_width):
             column = []
             for y in range(self.settings.cell_height):
@@ -163,10 +199,10 @@ class Game:
         for mine in self.all_mines:
             mine.is_mine = True
 
-        # Remove mines from list
+        # Remove created mines from list
         self.not_mines = [cell for cell in self.not_mines if not cell.is_mine]
 
-    def find_neighbors(self, cell):
+    def find_neighbors(self, cell: Cell):
         """Return list of cell's neighbors while filtering out cells beyond the edge"""
         x, y = cell.coordinates
         neighbors = (
@@ -179,11 +215,11 @@ class Game:
             (x + 1, y),
             (x + 1, y + 1),
         )
-        return [
+        return (
             self.cell_grid[i][j]
             for i, j in neighbors
             if 0 <= i < self.settings.cell_width and 0 <= j < self.settings.cell_height
-        ]
+        )
 
     def cell_value(self):
         """For every cell that is not a mine, calculate how many mines are in
@@ -232,159 +268,5 @@ class Game:
         Cell.right_click = Cell.disabled
 
 
-class Cell:
-    """Make a cell that contains a button and some attributes"""
-    # Cell control. Change cell behavior without rebinding every individual cell.
-    # Left click goes from 'first_move' > 'regular_move' > 'disabled'
-    left_click: callable = None
-    # Right click is 'flag' or 'disabled'
-    right_click: callable = None
-
-    def __init__(self, location, coordinates):
-        """
-        :param tkinter.Frame location: Minefield frame
-        :param (int, int) coordinates: x and y in the grid to look up neighbors
-        """
-        self.is_mine = False
-        self.flagged = False
-        self.revealed = False
-        self.value = 0
-        self.coordinates = coordinates
-
-        # Create tkinter button
-        self.button = Button(
-            location,
-            text="",
-            disabledforeground="black",
-            bd=4,
-            font=(active_game.settings.cell_font, active_game.settings.font_size),
-            width=1,
-            height=1
-        )
-        self.button.bind("<Button-1>", lambda e: self.left_click())
-        self.button.bind("<Button-3>", lambda e: self.right_click())
-
-    def first_move(self):
-        """Executed once at the start of the game and replaced with 'regular_move'.
-        Makes first move safe, calculates values, starts timer, reveals cell.
-        """
-        # Check if the first cell opened is a mine and move it to different cell
-        if self.is_mine:
-            # Remove mine from first clicked cell
-            self.is_mine = False
-
-            # Make random cell a new mine
-            replacement_mine = random.choice(active_game.not_mines)
-            replacement_mine.is_mine = True
-
-            # Update corresponding lists
-            active_game.all_mines.remove(self)
-            active_game.not_mines.append(self)
-            active_game.not_mines.remove(replacement_mine)
-            active_game.all_mines.append(replacement_mine)
-
-        # Fill in value for all none mine cells. Done after all mine placement is finalized
-        active_game.cell_value()
-
-        Cell.left_click = Cell.regular_move
-        active_game.timer.start()
-        self.reveal()
-
-        # Update counter for an edge case where player flagged some random squares
-        # at the start of the game and then hit a 0 to reveal some of those flagged cells
-        active_game.flagged_counter.update()
-
-    def regular_move(self):
-        """Checks if you lost the game by hitting a mine. Otherwise, reveals cell"""
-        if self.is_mine:
-            self.button.configure(
-                bg="#f20000",
-                disabledforeground="gray",
-                relief="sunken"
-            )
-            active_game.loss()
-        else:
-            self.reveal()
-            # Update counter in case of hitting 0 to reveal some of falsely flagged cells
-            active_game.flagged_counter.update()
-
-    def reveal(self):
-        """Show value of a cell that is not a mine
-        Calls itself recursively if you hit a 0 (black space)
-        """
-        # Check for falsely flagged mines, used during recursion call when you hit 0
-        if self.flagged:
-            self.button.configure(text="")
-            self.flagged = False
-            active_game.flagged_counter.counter += 1
-
-        # Change buttons to represent revealed cell
-        self.button.configure(state="disabled", relief="sunken")
-        self.revealed = True
-        # If you hit a 0 (black space), reveals cells next to self
-        if self.value == 0:
-            for neighbor in active_game.find_neighbors(self):
-                if not neighbor.revealed:
-                    neighbor.reveal()
-        elif self.value == 1:
-            self.button.configure(text='1', disabledforeground="#261cd9")
-        elif self.value == 2:
-            self.button.configure(text='2', disabledforeground="#0ea124")
-        elif self.value == 3:
-            self.button.configure(text='3', disabledforeground="#ed0202")
-        elif self.value == 4:
-            self.button.configure(text='4', disabledforeground="#140159")
-        elif self.value == 5:
-            self.button.configure(text='5', disabledforeground="#630104")
-        elif self.value == 6:
-            self.button.configure(text='6', disabledforeground="#00ced1")
-        elif self.value == 7:
-            self.button.configure(text='7', disabledforeground="black")
-        elif self.value == 8:
-            self.button.configure(text='8', disabledforeground="gray")
-
-        # Individually disable buttons for revealed cells in instance variables
-        self.left_click = self.disabled
-        self.right_click = self.disabled
-
-        # Update the victory condition and check if it was met
-        active_game.unrevealed_cell_count -= 1
-        if active_game.unrevealed_cell_count == 0:
-            active_game.victory()
-
-    def flag(self):
-        """Set or remove flag that indicates a potential mine"""
-        if self.flagged:
-            self.button.configure(
-                text="", disabledforeground="black", state='normal'
-            )
-            self.flagged = False
-            # Delete instance attribute that is disabling cell, reactivating it.
-            del self.left_click
-            active_game.flagged_counter.counter += 1
-        else:
-            self.button.configure(
-                text="🏴", disabledforeground="#ab0000", state="disabled"
-            )
-            self.flagged = True
-            # Disable control in instance attribute. All other cells still use
-            # class attribute and thus remain active
-            self.left_click = self.disabled
-            active_game.flagged_counter.counter -= 1
-        active_game.flagged_counter.update()
-
-    @staticmethod
-    def disabled(*args):
-        """Do nothing. Used to disable controls on buttons as needed"""
-        pass
-
 if __name__ == "__main__":
-    # Prepare all the settings for the game
-    
-    # Start the game.
-    active_game = Game()
-
-    active_game.start()
-    # Mainloop must be outside active game, as otherwise it will be recreated during
-    # restart and leak memory.
-    active_game.root.mainloop()
+    main()
