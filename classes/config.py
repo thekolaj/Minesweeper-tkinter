@@ -1,6 +1,6 @@
 from tkinter import Toplevel, IntVar, Label, Entry, Button, Tk
 from configparser import ConfigParser
-from os.path import exists
+from os.path import exists, join
 from typing import TYPE_CHECKING
 import _tkinter
 if TYPE_CHECKING:
@@ -140,7 +140,7 @@ class Config:
         # Create new window that pops up above main game
         top = Toplevel(location, takefocus=True, bd=15, relief="ridge")
         top.title("Custom")
-        top.iconbitmap('img/mine.ico')
+        top.iconbitmap(join('img', 'mine.ico'))
         top.resizable(False, False)
         top.bind("<Escape>", lambda e: top.destroy())
         top.bind("<Return>", submit_settings)
