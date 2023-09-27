@@ -1,7 +1,8 @@
 from tkinter import Label, Frame
 
 class FlaggedCounter:
-    """Shows how many mines are still unflagged"""
+    """Shows how many mines are left unflagged"""
+
     def __init__(self, location: Frame, mines: int, font: tuple[str, int]):
         self.counter = mines
         self.unflagged_count = Label(

@@ -36,10 +36,10 @@ user input like a regular application.
 
 #### Goals:
 - Learn basics of `tkinter`. Just enough to be familiar with how desktop interface works and 
-want it takes to create a stand-alone app.
+what it takes to create a stand-alone app.
 - Make a scalable interface that would fit the window in any direction the user decided to
 stretch it.
-- Use and external file to store settings.
+- Use an external file to store settings.
 
 ## Outcome and challenges
 #### `Tkinter` is difficult to learn:
@@ -74,6 +74,17 @@ A lot of time was spent on inbuilt validation in `tkinter.Entry`,
 which I ultimately failed to get to work. It was replaced with validation during 
 submission.
 
+#### Refactoring and testing:
+Rewrote the code and separated it into different files. Now it is much nicer to work with.
+
+As part of trying to improve game performance, added the ability to test the speed of functions
+with `cProfile`. While this did not yield any substantial results, I left the `speedstats.py` file
+in for the curious reader. Just run it with `python speedstats.py` and you'll get the stats
+printout to console when you exit the game.
+
+Added some tests. Run `pytest test` from main dir. While there is by no means close to 100% code
+coverage, it goes through some basics, like different class creation, as well as more advance
+features, like game controls and game over states.
 
 ## Credits
 Thank you to all the creators that make tkinter tutorials.
