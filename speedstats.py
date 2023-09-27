@@ -1,5 +1,5 @@
 """See how much time each function takes by running the game through this file
-Jus execute this file as if it was main.py.
+Just execute this file as if it was main.py.
 """
 import cProfile
 import main
