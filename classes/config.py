@@ -1,6 +1,6 @@
 from tkinter import Toplevel, IntVar, Label, Entry, Button, Tk
 from configparser import ConfigParser
-from os.path import exists, join
+from os.path import exists, join, dirname
 from typing import TYPE_CHECKING
 import _tkinter
 if TYPE_CHECKING:
@@ -13,6 +13,8 @@ class Config:
     max_cell_count = 40
     min_cell_size = 20
     max_cell_size = 200
+    icon_file = join(dirname(__file__),'..' , 'img', 'mine.ico')
+    print(icon_file)
 
     def __init__(self, game: "Game"):
         self.active_game = game
@@ -140,7 +142,7 @@ class Config:
         # Create new window that pops up above main game
         top = Toplevel(location, takefocus=True, bd=15, relief="ridge")
         top.title("Custom")
-        top.iconbitmap(join('img', 'mine.ico'))
+        top.iconbitmap(self.icon_file)
         top.resizable(False, False)
         top.bind("<Escape>", lambda e: top.destroy())
         top.bind("<Return>", submit_settings)

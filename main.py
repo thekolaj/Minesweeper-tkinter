@@ -8,10 +8,8 @@ you can also customize said file to change fonts and difficulty
 
 import random
 import sys
-import os
 from tkinter import Tk, Frame, Button, Menu
 from classes import Cell, Timer, Config, FlaggedCounter
-
 
 def main():
     """Simple steps to run the game"""
@@ -93,7 +91,7 @@ class Game:
         # Be wary of moving it anywhere later in code
         self.create_difficulty_menubar()
 
-        self.root.iconbitmap(os.path.join('img', 'mine.ico'))
+        self.root.iconbitmap(Config.icon_file)
 
         # Bind escape and 'X' button to make game save settings on exit
         self.root.bind("<Escape>", self.save_and_exit)
